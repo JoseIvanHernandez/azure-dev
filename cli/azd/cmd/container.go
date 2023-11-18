@@ -27,6 +27,7 @@ import (
 	"github.com/azure/azure-dev/cli/azd/pkg/environment"
 	"github.com/azure/azure-dev/cli/azd/pkg/environment/azdcontext"
 	"github.com/azure/azure-dev/cli/azd/pkg/exec"
+	"github.com/azure/azure-dev/cli/azd/pkg/helm"
 	"github.com/azure/azure-dev/cli/azd/pkg/httputil"
 	"github.com/azure/azure-dev/cli/azd/pkg/infra"
 	"github.com/azure/azure-dev/cli/azd/pkg/infra/provisioning"
@@ -464,6 +465,7 @@ func registerCommonDependencies(container *ioc.NestedContainer) {
 	container.MustRegisterSingleton(javac.NewCli)
 	container.MustRegisterSingleton(kubectl.NewKubectl)
 	container.MustRegisterSingleton(maven.NewMavenCli)
+	container.MustRegisterSingleton(helm.NewCli)
 	container.MustRegisterSingleton(npm.NewNpmCli)
 	container.MustRegisterSingleton(python.NewPythonCli)
 	container.MustRegisterSingleton(swa.NewSwaCli)

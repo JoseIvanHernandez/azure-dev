@@ -17,6 +17,7 @@ import (
 	// Importing for infrastructure provider plugin registrations
 
 	"github.com/azure/azure-dev/cli/azd/pkg/azd"
+	"github.com/azure/azure-dev/cli/azd/pkg/input"
 	"github.com/azure/azure-dev/cli/azd/pkg/ioc"
 	"github.com/azure/azure-dev/cli/azd/pkg/platform"
 
@@ -326,6 +327,16 @@ func NewRootCmd(ctx context.Context, staticHelp bool, middlewareChain []*actions
 	rootContainer := ioc.NewNestedContainer(nil)
 	ioc.RegisterNamedInstance(rootContainer, "root-cmd", rootCmd)
 	registerCommonDependencies(rootContainer)
+
+	console := input.NewConsole(false, true, os.Stdout, input.ConsoleHandles{
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}, &output.NoneFormatter{})
+	_, _ = console.Confirm(context.Background(), input.ConsoleOptions{
+		Message:      fmt.Sprintf("Debugger Ready? (pid: %d)", os.Getpid()),
+		DefaultValue: true,
+	})
 
 	// Initialize the platform specific components for the IoC container
 	// Only container resolution errors will return an error
