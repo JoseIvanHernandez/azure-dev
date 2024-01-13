@@ -89,7 +89,7 @@ func (c *Cli) Install(ctx context.Context, release *Release) error {
 // Upgrade upgrades a helm release to the specified version
 // If the release did not previously exist, it will be installed
 func (c *Cli) Upgrade(ctx context.Context, release *Release) error {
-	runArgs := exec.NewRunArgs("helm", "upgrade", release.Name, release.Chart, "--install")
+	runArgs := exec.NewRunArgs("helm", "upgrade", release.Name, release.Chart, "--install", "--wait")
 	if release.Version != "" {
 		runArgs = runArgs.AppendParams("--version", release.Version)
 	}

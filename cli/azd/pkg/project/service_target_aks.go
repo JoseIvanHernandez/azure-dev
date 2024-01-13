@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
+	"github.com/azure/azure-dev/cli/azd/pkg/alpha"
 	"github.com/azure/azure-dev/cli/azd/pkg/async"
 	"github.com/azure/azure-dev/cli/azd/pkg/azure"
 	"github.com/azure/azure-dev/cli/azd/pkg/environment"
@@ -29,6 +30,11 @@ import (
 
 const (
 	defaultDeploymentPath = "manifests"
+)
+
+var (
+	featureHelm      alpha.FeatureId = alpha.MustFeatureKey("aks.helm")
+	featureKustomize alpha.FeatureId = alpha.MustFeatureKey("aks.kustomize")
 )
 
 // The AKS configuration options
@@ -75,6 +81,7 @@ type aksTarget struct {
 	helmCli                *helm.Cli
 	kustomizeCli           *kustomize.Cli
 	containerHelper        *ContainerHelper
+	featureManager         *alpha.FeatureManager
 }
 
 // Creates a new instance of the AKS service target
@@ -88,6 +95,7 @@ func NewAksTarget(
 	helmCli *helm.Cli,
 	kustomizeCli *kustomize.Cli,
 	containerHelper *ContainerHelper,
+	featureManager *alpha.FeatureManager,
 ) ServiceTarget {
 	return &aksTarget{
 		env:                    env,
@@ -99,6 +107,7 @@ func NewAksTarget(
 		helmCli:                helmCli,
 		kustomizeCli:           kustomizeCli,
 		containerHelper:        containerHelper,
+		featureManager:         featureManager,
 	}
 }
 
@@ -108,8 +117,13 @@ func (t *aksTarget) RequiredExternalTools(ctx context.Context) []tools.ExternalT
 	allTools = append(allTools, t.containerHelper.RequiredExternalTools(ctx)...)
 	allTools = append(allTools, t.kubectl)
 
-	// TODO: Need to update to have conditional tooling
-	// For example, Helm & Kustomize are only required if the user is using AKS with these deployment tools.
+	if t.featureManager.IsEnabled(featureHelm) {
+		allTools = append(allTools, t.helmCli)
+	}
+
+	if t.featureManager.IsEnabled(featureKustomize) {
+		allTools = append(allTools, t.kustomizeCli)
+	}
 
 	return allTools
 }
@@ -302,7 +316,14 @@ func (t *aksTarget) deployKustomize(
 		return false, nil
 	}
 
-	task.SetProgress(NewServiceProgress("Applying k8s manifests"))
+	if !t.featureManager.IsEnabled(featureKustomize) {
+		return false, fmt.Errorf(
+			"Kustomize support is not enabled. Run '%s' to enable it.",
+			alpha.GetEnableCommand(featureKustomize),
+		)
+	}
+
+	task.SetProgress(NewServiceProgress("Applying k8s manifests with Kustomize"))
 	overlayPath, err := serviceConfig.K8s.Kustomize.Directory.Envsubst(t.env.Getenv)
 	if err != nil {
 		return false, fmt.Errorf("failed to envsubst kustomize directory: %w", err)
@@ -371,6 +392,10 @@ func (t *aksTarget) deployHelmCharts(
 ) (bool, error) {
 	if serviceConfig.K8s.Helm == nil {
 		return false, nil
+	}
+
+	if !t.featureManager.IsEnabled(featureHelm) {
+		return false, fmt.Errorf("Helm support is not enabled. Run '%s' to enable it.", alpha.GetEnableCommand(featureHelm))
 	}
 
 	for _, repo := range serviceConfig.K8s.Helm.Repositories {
