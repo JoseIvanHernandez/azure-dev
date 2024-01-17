@@ -58,8 +58,11 @@ func (cli *Cli) WithCwd(cwd string) *Cli {
 // Edit runs the kustomize edit command with the specified args
 func (cli *Cli) Edit(ctx context.Context, args ...string) error {
 	runArgs := exec.NewRunArgs("kustomize", "edit").
-		AppendParams(args...).
-		WithCwd(cli.cwd)
+		AppendParams(args...)
+
+	if cli.cwd != "" {
+		runArgs = runArgs.WithCwd(cli.cwd)
+	}
 
 	_, err := cli.commandRunner.Run(ctx, runArgs)
 
