@@ -84,8 +84,8 @@ func Test_Required_Tools_WithAlpha(t *testing.T) {
 	env := createEnv()
 
 	userConfig := config.NewConfig(nil)
-	userConfig.Set("alpha.aks.helm", "on")
-	userConfig.Set("alpha.aks.kustomize", "on")
+	_ = userConfig.Set("alpha.aks.helm", "on")
+	_ = userConfig.Set("alpha.aks.kustomize", "on")
 	serviceTarget := createAksServiceTarget(mockContext, serviceConfig, env, userConfig)
 
 	requiredTools := serviceTarget.RequiredExternalTools(*mockContext.Context)
@@ -255,6 +255,66 @@ func Test_Deploy_Helm(t *testing.T) {
 	require.Contains(t, strings.Join(helmStatus.Args, " "), "status argocd")
 }
 
+func Test_Deploy_Kustomize(t *testing.T) {
+	tempDir := t.TempDir()
+	ostest.Chdir(t, tempDir)
+
+	mockContext := mocks.NewMockContext(context.Background())
+	err := setupMocksForAksTarget(mockContext)
+	require.NoError(t, err)
+
+	mockResults, err := setupMocksForKustomize(mockContext)
+	require.NoError(t, err)
+
+	serviceConfig := *createTestServiceConfig(tempDir, AksTarget, ServiceLanguageTypeScript)
+	serviceConfig.RelativePath = ""
+	serviceConfig.K8s.Kustomize = &kustomize.Config{
+		Directory: osutil.NewExpandableString("./kustomize/overlays/dev"),
+		Edits: []osutil.ExpandableString{
+			osutil.NewExpandableString("set image todo-api=${SERVICE_API_IMAGE_NAME}"),
+		},
+	}
+
+	err = os.MkdirAll(filepath.Join(tempDir, "./kustomize/overlays/dev"), osutil.PermissionDirectory)
+	require.NoError(t, err)
+
+	env := createEnv()
+	env.DotenvSet("SERVICE_API_IMAGE_NAME", "REGISTRY.azurecr.io/test-app/api-test:azd-deploy-0")
+
+	userConfig := config.NewConfig(nil)
+	_ = userConfig.Set("alpha.aks.kustomize", "on")
+
+	serviceTarget := createAksServiceTarget(mockContext, &serviceConfig, env, userConfig)
+	err = simulateInitliaze(*mockContext.Context, serviceTarget, &serviceConfig)
+	require.NoError(t, err)
+
+	packageResult := &ServicePackageResult{
+		PackagePath: "test-app/api-test:azd-deploy-0",
+		Details:     &dockerPackageResult{},
+	}
+
+	scope := environment.NewTargetResource("SUB_ID", "RG_ID", "CLUSTER_NAME", string(infra.AzureResourceTypeManagedCluster))
+	deployTask := serviceTarget.Deploy(*mockContext.Context, &serviceConfig, packageResult, scope)
+	logProgress(deployTask)
+	deployResult, err := deployTask.Await()
+
+	require.NoError(t, err)
+	require.NotNil(t, deployResult)
+
+	kustomizeEdit, kustomizeEditCalled := mockResults["kustomize-edit"]
+	require.True(t, kustomizeEditCalled)
+	require.Equal(t, []string{
+		"edit",
+		"set",
+		"image",
+		"todo-api=REGISTRY.azurecr.io/test-app/api-test:azd-deploy-0",
+	}, kustomizeEdit.Args)
+
+	kubectlApplyKustomize, kubectlApplyKustomizeCalled := mockResults["kubectl-apply-kustomize"]
+	require.True(t, kubectlApplyKustomizeCalled)
+	require.Equal(t, []string{"apply", "-k", filepath.FromSlash("kustomize/overlays/dev")}, kubectlApplyKustomize.Args)
+}
+
 func setupK8sManifests(t *testing.T, serviceConfig *ServiceConfig) error {
 	manifestsDir := filepath.Join(serviceConfig.RelativePath, defaultDeploymentPath)
 	err := os.MkdirAll(manifestsDir, osutil.PermissionDirectory)
@@ -304,6 +364,26 @@ func setupMocksForHelm(mockContext *mocks.MockContext) (map[string]exec.RunArgs,
 			}
 		}`
 		return exec.NewRunResult(0, statusResult, ""), nil
+	})
+
+	return result, nil
+}
+
+func setupMocksForKustomize(mockContext *mocks.MockContext) (map[string]exec.RunArgs, error) {
+	result := map[string]exec.RunArgs{}
+
+	mockContext.CommandRunner.When(func(args exec.RunArgs, command string) bool {
+		return strings.Contains(command, "kustomize edit")
+	}).RespondFn(func(args exec.RunArgs) (exec.RunResult, error) {
+		result["kustomize-edit"] = args
+		return exec.NewRunResult(0, "", ""), nil
+	})
+
+	mockContext.CommandRunner.When(func(args exec.RunArgs, command string) bool {
+		return strings.Contains(command, "kubectl apply -k")
+	}).RespondFn(func(args exec.RunArgs) (exec.RunResult, error) {
+		result["kubectl-apply-kustomize"] = args
+		return exec.NewRunResult(0, "", ""), nil
 	})
 
 	return result, nil
