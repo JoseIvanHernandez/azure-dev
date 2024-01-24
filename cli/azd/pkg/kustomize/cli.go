@@ -26,12 +26,12 @@ func (cli *Cli) Name() string {
 	return "kustomize"
 }
 
-// Returns the installation URL to install the K8s CLI
+// Returns the installation URL to install the Kustomize CLI
 func (cli *Cli) InstallUrl() string {
 	return "https://aka.ms/azure-dev/kustomize-install"
 }
 
-// Checks whether or not the K8s CLI is installed and available within the PATH
+// Checks whether or not the Kustomize CLI is installed and available within the PATH
 func (cli *Cli) CheckInstalled(ctx context.Context) error {
 	if err := tools.ToolInPath("kustomize"); err != nil {
 		return err

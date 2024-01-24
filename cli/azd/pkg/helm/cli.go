@@ -26,12 +26,12 @@ func (cli *Cli) Name() string {
 	return "helm"
 }
 
-// Returns the installation URL to install the K8s CLI
+// Returns the installation URL to install the Helm CLI
 func (cli *Cli) InstallUrl() string {
 	return "https://aka.ms/azure-dev/helm-install"
 }
 
-// Checks whether or not the K8s CLI is installed and available within the PATH
+// Checks whether or not the Helm CLI is installed and available within the PATH
 func (cli *Cli) CheckInstalled(ctx context.Context) error {
 	if err := tools.ToolInPath("helm"); err != nil {
 		return err

@@ -468,7 +468,6 @@ func registerCommonDependencies(container *ioc.NestedContainer) {
 	container.MustRegisterSingleton(maven.NewMavenCli)
 	container.MustRegisterSingleton(helm.NewCli)
 	container.MustRegisterSingleton(kustomize.NewCli)
-	container.MustRegisterSingleton(kustomize.NewKustomize)
 	container.MustRegisterSingleton(npm.NewNpmCli)
 	container.MustRegisterSingleton(python.NewPythonCli)
 	container.MustRegisterSingleton(swa.NewSwaCli)
@@ -484,7 +483,7 @@ func registerCommonDependencies(container *ioc.NestedContainer) {
 
 	// Service Targets
 	serviceTargetMap := map[project.ServiceTargetKind]any{
-		"":                               project.NewAppServiceTarget,
+		project.NonSpecifiedTarget:       project.NewAppServiceTarget,
 		project.AppServiceTarget:         project.NewAppServiceTarget,
 		project.AzureFunctionTarget:      project.NewFunctionAppTarget,
 		project.ContainerAppTarget:       project.NewContainerAppTarget,
