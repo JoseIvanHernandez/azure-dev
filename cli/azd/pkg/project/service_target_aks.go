@@ -197,16 +197,25 @@ func (t *aksTarget) Deploy(
 			// Sync environment
 			t.kubectl.SetEnv(t.env.Dotenv())
 
-			var deployed bool
+			// Deploy k8s resources in the following order:
+			// 1. Helm
+			// 2. Kustomize
+			// 3. Manifests
+			//
+			// Users may install a helm chart to setup their cluster with custom resource definitions that their
+			// custom manifests depend on.
+			// Users are more likely to either deploy with kustomize or vanilla manifests but they could do both.
 
-			// Vanilla k8s manifests with minimal templating support
-			deployment, err := t.deployManifests(ctx, serviceConfig, task)
-			if err != nil && !os.IsNotExist(err) {
-				task.SetError(err)
+			deployed := false
+
+			// Helm Support
+			helmDeployed, err := t.deployHelmCharts(ctx, serviceConfig, task)
+			if err != nil {
+				task.SetError(fmt.Errorf("helm deployment failed: %w", err))
 				return
 			}
 
-			deployed = deployment != nil
+			deployed = deployed || helmDeployed
 
 			// Kustomize Support
 			kustomizeDeployed, err := t.deployKustomize(ctx, serviceConfig, task)
@@ -217,14 +226,14 @@ func (t *aksTarget) Deploy(
 
 			deployed = deployed || kustomizeDeployed
 
-			// Helm Support
-			helmDeployed, err := t.deployHelmCharts(ctx, serviceConfig, task)
-			if err != nil {
-				task.SetError(fmt.Errorf("helm deployment failed: %w", err))
+			// Vanilla k8s manifests with minimal templating support
+			deployment, err := t.deployManifests(ctx, serviceConfig, task)
+			if err != nil && !os.IsNotExist(err) {
+				task.SetError(err)
 				return
 			}
 
-			deployed = deployed || helmDeployed
+			deployed = deployed || deployment != nil
 
 			if !deployed {
 				task.SetError(errors.New("no deployment manifests found"))
