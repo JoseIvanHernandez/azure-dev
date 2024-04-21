@@ -1,4 +1,4 @@
-# Azure Developer CLI
+# Azure Developer CLI. Add
 
 Latest builds:
 
